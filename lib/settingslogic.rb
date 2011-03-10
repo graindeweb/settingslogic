@@ -35,7 +35,15 @@ class Settingslogic < Hash
         @namespace = value
       end
     end
-    
+
+    def default_namespace(value = nil)
+      if value.nil?
+        @default_namespace
+      else
+        @default_namespace = value
+      end
+    end
+
     def [](key)
       instance.fetch(key.to_s, nil)
     end
@@ -51,12 +59,12 @@ class Settingslogic < Hash
       instance
       true
     end
-    
+
     def reload!
       @instance = nil
       load!
     end
-    
+
     private
       def instance
         return @instance if @instance
@@ -64,7 +72,7 @@ class Settingslogic < Hash
         create_accessors!
         @instance
       end
-      
+
       def method_missing(name, *args, &block)
         instance.send(name, *args, &block)
       end
@@ -102,8 +110,13 @@ class Settingslogic < Hash
     when Hash
       self.replace hash_or_file
     else
-      hash = YAML.load(ERB.new(File.read(hash_or_file)).result).to_hash
-      hash = hash[self.class.namespace] if self.class.namespace
+      tmp_hash = YAML.load(ERB.new(File.read(hash_or_file)).result).to_hash
+      # HACK bat : deeping merge between default configuration and env configuration
+      hash = self.class.namespace ? tmp_hash[self.class.namespace] : tmp_hash
+      if (self.class.default_namespace && tmp_hash[self.class.default_namespace])
+        hash = tmp_hash[self.class.default_namespace].deep_merge(hash)
+      end
+      # end HACK
       self.replace hash
     end
     @section = section || self.class.source  # so end of error says "in application.yml"
